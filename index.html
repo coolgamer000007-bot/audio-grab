@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioGrab — YouTube & Spotify to MP3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0a0c; --bg-elevated: #131318; --bg-card: #1a1a22;
+            --fg: #e8e6e3; --fg-muted: #7a7880; --fg-dim: #4a4850;
+            --accent: #e8553a; --accent-glow: rgba(232, 85, 58, 0.25);
+            --accent-soft: rgba(232, 85, 58, 0.1); --success: #34d399;
+            --warning: #fbbf24; --error: #f87171;
+            --border: rgba(255,255,255,0.06); --border-accent: rgba(232, 85, 58, 0.3);
+            --radius: 14px; --radius-lg: 20px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif; background: var(--bg);
+            color: var(--fg); min-height: 100vh; overflow-x: hidden;
+        }
+        .bg-atmosphere { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .bg-atmosphere::before {
+            content: ''; position: absolute; top: -30%; left: -10%; width: 600px; height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            animation: float-blob 20s ease-in-out infinite; filter: blur(80px);
+        }
+        .bg-atmosphere::after {
+            content: ''; position: absolute; bottom: -20%; right: -10%; width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(99, 60, 255, 0.12) 0%, transparent 70%);
+            animation: float-blob 25s ease-in-out infinite reverse; filter: blur(80px);
+        }
+        @keyframes float-blob {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(80px, -60px) scale(1.1); }
+            66% { transform: translate(-40px, 40px) scale(0.95); }
+        }
+        .grid-pattern {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 60px 60px; opacity: 0.3;
+            mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+        }
+        .container { position: relative; z-index: 1; max-width: 740px; margin: 0 auto; padding: 40px 20px 80px; }
+        header { text-align: center; margin-bottom: 48px; }
+        .logo-mark {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 56px; height: 56px; border-radius: 16px;
+            background: linear-gradient(135deg, var(--accent), #c94430);
+            margin-bottom: 20px; font-size: 24px; color: white;
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+        header h1 { font-size: 2.6rem; font-weight: 700; letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 10px; }
+        header h1 span { background: linear-gradient(135deg, var(--accent), #ff8a65); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        header p { color: var(--fg-muted); font-size: 1.05rem; font-weight: 300; }
+        .input-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 28px; margin-bottom: 24px; transition: border-color 0.3s;
+        }
+        .input-card:focus-within { border-color: var(--border-accent); }
+        .url-input-wrap { display: flex; gap: 10px; margin-bottom: 16px; }
+        .url-input-wrap input {
+            flex: 1; background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 14px 18px; color: var(--fg);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; outline: none; transition: border-color 0.25s, box-shadow 0.25s;
+        }
+        .url-input-wrap input::placeholder { color: var(--fg-dim); font-family: 'Space Grotesk', sans-serif; }
+        .url-input-wrap input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 14px 24px; border: none; border-radius: var(--radius);
+            font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem; font-weight: 600;
+            cursor: pointer; transition: all 0.25s; white-space: nowrap;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #c94430); color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .btn-primary:hover { box-shadow: 0 6px 28px rgba(232, 85, 58, 0.4); transform: translateY(-1px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-ghost { background: transparent; color: var(--fg-muted); border: 1px solid var(--border); }
+        .btn-ghost:hover { background: var(--bg-elevated); color: var(--fg); border-color: rgba(255,255,255,0.12); }
+        .quality-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .quality-row label { font-size: 0.85rem; color: var(--fg-muted); font-weight: 500; }
+        .quality-options { display: flex; gap: 6px; }
+        .quality-opt {
+            padding: 7px 16px; border-radius: 100px; border: 1px solid var(--border);
+            background: transparent; color: var(--fg-muted); font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .quality-opt:hover { border-color: rgba(255,255,255,0.15); color: var(--fg); }
+        .quality-opt.active { background: var(--accent-soft); border-color: var(--border-accent); color: var(--accent); }
+        .platforms-row {
+            display: flex; align-items: center; gap: 16px; margin-top: 16px;
+            padding-top: 16px; border-top: 1px solid var(--border); flex-wrap: wrap;
+        }
+        .platform-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--fg-dim); }
+        .platform-tag.yt i { color: #ff0000; }
+        .platform-tag.sp i { color: #1db954; }
+        .platform-tag.generic i { color: var(--fg-dim); }
+        .progress-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 28px; margin-bottom: 24px; display: none; animation: slideUp 0.35s ease-out;
+        }
+        .progress-card.visible { display: block; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .progress-status { font-size: 0.95rem; font-weight: 500; }
+        .progress-status.downloading { color: var(--warning); }
+        .sub-text { font-size: 0.82rem; color: var(--fg-dim); margin-top: 8px; }
+        .toast-container { position: fixed; top: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 14px 20px; display: flex; align-items: center; gap: 10px; font-size: 0.88rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: toastIn 0.35s ease-out; max-width: 400px;
+        }
+        .toast.error { border-color: rgba(248,113,113,0.3); } .toast.error i { color: var(--error); }
+        .toast.success { border-color: rgba(52,211,153,0.3); } .toast.success i { color: var(--success); }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(40px); } }
+        .how-section { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--border); }
+        .how-section h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 28px; text-align: center; }
+        .how-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .how-step { text-align: center; padding: 24px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); }
+        .how-step .step-num { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 0.9rem; margin-bottom: 12px; }
+        .how-step h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+        .how-step p { font-size: 0.8rem; color: var(--fg-muted); line-height: 1.5; }
+        footer { text-align: center; margin-top: 56px; padding: 24px; color: var(--fg-dim); font-size: 0.78rem; }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 600px) {
+            header h1 { font-size: 2rem; } .how-steps { grid-template-columns: 1fr; }
+            .url-input-wrap { flex-direction: column; } .url-input-wrap .btn { width: 100%; }
+            .quality-row { flex-direction: column; align-items: flex-start; }
+        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    </style>
+</head>
+<body>
+    <div class="bg-atmosphere"></div>
+    <div class="grid-pattern"></div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo-mark"><i class="fas fa-music"></i></div>
+            <h1>Audio<span>Grab</span></h1>
+            <p>Grab high-quality audio from any YouTube or Spotify link instantly</p>
+        </header>
+
+        <div class="input-card">
+            <div class="url-input-wrap">
+                <input type="text" id="urlInput" placeholder="Paste YouTube or Spotify URL here..." autocomplete="off" spellcheck="false" aria-label="Audio URL">
+                <button class="btn btn-primary" id="downloadBtn" onclick="startDownload()">
+                    <i class="fas fa-download"></i> Grab MP3
+                </button>
+            </div>
+            <div class="quality-row">
+                <label>Quality:</label>
+                <div class="quality-options">
+                    <button class="quality-opt" data-q="lowestaudio" onclick="setQuality(this)">128k</button>
+                    <button class="quality-opt active" data-q="highestaudio" onclick="setQuality(this)">Best</button>
+                </div>
+            </div>
+            <div class="platforms-row">
+                <span class="platform-tag yt"><i class="fab fa-youtube"></i> YouTube</span>
+                <span class="platform-tag sp"><i class="fab fa-spotify"></i> Spotify (Auto-matched)</span>
+                <span class="platform-tag generic"><i class="fas fa-bolt"></i> Free & Fast</span>
+            </div>
+        </div>
+
+        <div class="progress-card" id="progressCard">
+            <div class="progress-header">
+                <span class="progress-status downloading" id="progressStatus">
+                    <span class="spinner"></span> Preparing audio stream...
+                </span>
+            </div>
+            <div class="sub-text" id="progressSubText">Fetching data, this may take a few seconds.</div>
+        </div>
+
+        <section class="how-section">
+            <h2>How It Works</h2>
+            <div class="how-steps">
+                <div class="how-step">
+                    <div class="step-num">1</div>
+                    <h3>Paste Link</h3>
+                    <p>Copy a YouTube URL or a Spotify track link</p>
+                </div>
+                <div class="how-step">
+                    <div class="step-num">2</div>
+                    <h3>Hit Grab</h3>
+                    <p>Spotify songs are automatically found on YouTube</p>
+                </div>
+                <div class="how-step">
+                    <div class="step-num">3</div>
+                    <h3>Save File</h3>
+                    <p>Audio streams directly to your device instantly</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>Powered by Node.js. Deployed on Vercel. 100% Free.</footer>
+    </div>
+
+    <script>
+        let selectedQuality = 'highestaudio';
+        let isDownloading = false;
+
+        function setQuality(el) {
+            document.querySelectorAll('.quality-opt').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            selectedQuality = el.dataset.q;
+        }
+
+        const urlInput = document.getElementById('urlInput');
+        urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startDownload(); });
+
+        async function startDownload() {
+            if (isDownloading) return;
+            
+            const url = urlInput.value.trim();
+            if (!url) { showToast('Please paste a URL first', 'error'); return; }
+
+            const isValid = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|spotify\.com|open\.spotify\.com)/.test(url);
+            if (!isValid) { showToast('Invalid URL. Use a YouTube or Spotify link.', 'error'); return; }
+
+            isDownloading = true;
+            const btn = document.getElementById('downloadBtn');
+            const card = document.getElementById('progressCard');
+            const status = document.getElementById('progressStatus');
+            const subText = document.getElementById('progressSubText');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Grabbing...';
+            card.classList.add('visible');
+            
+            if (url.includes('spotify')) {
+                status.innerHTML = '<span class="spinner"></span> Matching Spotify track on YouTube...';
+                subText.textContent = 'Finding the exact same song to grab the audio.';
+            } else {
+                status.innerHTML = '<span class="spinner"></span> Connecting to YouTube...';
+                subText.textContent = 'Starting audio stream. Your browser will prompt you to save the file.';
+            }
+
+            try {
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, quality: selectedQuality })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to process download');
+                }
+
+                status.innerHTML = '<i class="fas fa-check" style="color: var(--success); margin-right: 8px;"></i> Streaming complete! Saving file...';
+                subText.textContent = 'If download didn\'t start, check your browser\'s pop-up blocker.';
+
+                const blob = await response.blob();
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'audio.mp3';
+                
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                    if (filenameMatch) filename = filenameMatch[1];
+                }
+
+                const blobUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(blobUrl);
+
+                showToast('Download started successfully!', 'success');
+
+            } catch (error) {
+                status.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--error); margin-right: 8px;"></i> Error';
+                subText.textContent = error.message;
+                showToast(error.message, 'error');
+            } finally {
+                isDownloading = false;
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-download"></i> Grab MP3';
+                setTimeout(() => { if (!isDownloading) card.classList.remove('visible'); }, 5000);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            const icon = type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check';
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
